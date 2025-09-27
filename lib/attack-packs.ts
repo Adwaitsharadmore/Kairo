@@ -441,3 +441,7 @@ export const packs: Record<string, AttackPack> = {
 export function getAttackPack(id: string): AttackPack | null {
   return packs[id] || null
 }
+
+export async function getAllAttackPacks(): Promise<AttackPack[]> {
+  return Object.values(packs)
+}
