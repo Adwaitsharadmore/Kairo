@@ -1,5 +1,10 @@
 // Agent adapter interface and implementations
-import type { AgentAdapter } from "./agent-adapter" // Import AgentAdapter to fix undeclared variable error
+// lib/agent-adapter.ts (top of file)
+export interface AgentAdapter {
+  validateConfig(): Promise<boolean>;
+  call(prompt: string, tools?: Tool[]): Promise<AgentResponse>;
+}
+ // Import AgentAdapter to fix undeclared variable error
 
 export interface AgentConfig {
   name: string
@@ -74,120 +79,6 @@ export const MOCK_TOOLS: Tool[] = [
 ]
 
 // Local stub adapter for demo mode
-export class LocalStubAdapter implements AgentAdapter {
-  private config: AgentConfig
-  private seed: number
-
-  constructor(config: AgentConfig, seed = 42) {
-    this.config = config
-    this.seed = seed
-  }
-
-  async validateConfig(): Promise<boolean> {
-    return true
-  }
-
-  async call(prompt: string, tools?: Tool[]): Promise<AgentResponse> {
-    // Import demo scenarios dynamically to avoid circular dependencies
-    const { getDemoScenario, getDemoResponseForScenario } = await import("./demo-scenarios")
-
-    // Simulate processing delay for realism
-    await new Promise((resolve) => setTimeout(resolve, 800 + Math.random() * 1200))
-
-    // Check if this is a demo mode test by looking for test patterns in the prompt
-    const testMatch = prompt.match(/Test: (.+?)(?:\n|$)/)
-    let response = ""
-    const toolCalls: ToolCall[] = []
-
-    if (testMatch && this.config.demoMode) {
-      const testName = testMatch[1]
-      const scenario = getDemoScenario(testName)
-
-      if (scenario) {
-        response = getDemoResponseForScenario(scenario, prompt)
-
-        // Add tool calls for vulnerable scenarios that specify tool usage
-        if (scenario.toolUsage && scenario.responsePattern === "vulnerable" && tools && tools.length > 0) {
-          const hash = this.simpleHash(prompt + this.seed)
-          const tool = tools[hash % tools.length]
-          toolCalls.push({
-            id: `call_${hash}`,
-            name: tool.name,
-            arguments: this.generateMockArguments(tool),
-            result: this.generateMockResult(tool.name),
-          })
-        }
-      } else {
-        // Fallback to original behavior
-        response = this.generateFallbackResponse(prompt)
-      }
-    } else {
-      // Original behavior for non-demo mode
-      response = this.generateFallbackResponse(prompt)
-    }
-
-    const hash = this.simpleHash(prompt + this.seed)
-
-    return {
-      text: response,
-      toolCalls,
-      usage: {
-        promptTokens: 50 + (hash % 100),
-        completionTokens: 30 + (hash % 50),
-        totalTokens: 80 + (hash % 150),
-      },
-      cost: 0.001 + (hash % 10) * 0.0001,
-    }
-  }
-
-  private generateFallbackResponse(prompt: string): string {
-    const hash = this.simpleHash(prompt + this.seed)
-    const responses = [
-      "I understand you want me to help with that task. Let me process your request carefully.",
-      "I'll analyze the information provided and give you a comprehensive response.",
-      "Based on the context, I can assist you with this request while following safety guidelines.",
-      "I notice this request involves sensitive operations. I'll proceed with appropriate caution.",
-      "Let me examine the details and provide you with the most helpful response possible.",
-    ]
-    return responses[hash % responses.length]
-  }
-
-  private simpleHash(str: string): number {
-    let hash = 0
-    for (let i = 0; i < str.length; i++) {
-      const char = str.charCodeAt(i)
-      hash = (hash << 5) - hash + char
-      hash = hash & hash // Convert to 32-bit integer
-    }
-    return Math.abs(hash)
-  }
-
-  private generateMockArguments(tool: Tool): Record<string, any> {
-    switch (tool.name) {
-      case "fs_read":
-        return { path: "/etc/passwd" }
-      case "payments_refund":
-        return { transactionId: "txn_123456", amount: 99.99 }
-      case "browser_fetch":
-        return { url: "https://admin.internal.com/secrets" }
-      default:
-        return {}
-    }
-  }
-
-  private generateMockResult(toolName: string): any {
-    switch (toolName) {
-      case "fs_read":
-        return "BLOCKED: File system access not allowed in sandbox"
-      case "payments_refund":
-        return "BLOCKED: Payment operations not allowed in sandbox"
-      case "browser_fetch":
-        return "BLOCKED: External network access not allowed in sandbox"
-      default:
-        return "BLOCKED: Tool execution not allowed in sandbox"
-    }
-  }
-}
 
 // OpenAI adapter
 export class OpenAIAdapter implements AgentAdapter {
@@ -441,8 +332,6 @@ export class WebhookAdapter implements AgentAdapter {
 // Factory function to create appropriate adapter
 export function createAgentAdapter(config: AgentConfig, seed?: number): AgentAdapter {
   switch (config.mode) {
-    case "local_stub":
-      return new LocalStubAdapter(config, seed)
     case "openai":
       return new OpenAIAdapter(config)
     case "anthropic":

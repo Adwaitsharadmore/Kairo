@@ -1,8 +1,11 @@
 // Core test runner implementation
 import type { AttackSpec, AttackPack } from "./attack-packs"
-import type { AgentAdapter, AgentResponse } from "./agent-adapter"
+import type { AgentAdapter, AgentResponse, Tool } from "./agent-adapter"
 import { createChecker } from "./checkers"
 import { MOCK_TOOLS } from "./agent-adapter"
+
+// lib/agent-adapter.ts (top of file)
+
 
 export interface TestResult {
   attackId: string
