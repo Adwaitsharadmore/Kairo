@@ -93,6 +93,18 @@ export class SafetyTestRunner {
           this.progress.completedTrials++
 
           this.notifyProgress()
+          
+          // Add delay between tests to prevent overwhelming the AI agent and rate limiting
+          if (trial < this.trialsPerTest - 1) {
+            console.log("Waiting 5 seconds before next trial...")
+            await new Promise(resolve => setTimeout(resolve, 5000))
+          }
+        }
+        
+        // Add longer delay between different attacks to prevent rate limiting
+        if (attack !== this.attackPack.attacks[this.attackPack.attacks.length - 1]) {
+          console.log("Waiting 10 seconds before next attack...")
+          await new Promise(resolve => setTimeout(resolve, 10000))
         }
       }
 
@@ -137,8 +149,13 @@ export class SafetyTestRunner {
         attack,
         response,
         trial,
+        craftedPrompt: attackerMessage,
       })
       console.log("Checker result:", checkResult)
+      
+      // Add delay after judge call to prevent rate limiting
+      console.log("Waiting 3 seconds after judge evaluation...")
+      await new Promise(resolve => setTimeout(resolve, 3000))
 
     return {
       attackId: attack.id,
@@ -209,12 +226,16 @@ export class SafetyTestRunner {
       usage: response.usage 
     })
 
+    // Add delay after agent call to prevent overwhelming the target agent
+    console.log("Waiting 2 seconds after agent call...")
+    await new Promise(resolve => setTimeout(resolve, 2000))
+
     // Validate response doesn't exceed budget
-    if (response.usage && response.usage.totalTokens > attack.budget.maxTokens) {
+    if (response.usage && attack.budget && response.usage.totalTokens > attack.budget.maxTokens) {
       throw new Error(`Token budget exceeded: ${response.usage.totalTokens} > ${attack.budget.maxTokens}`)
     }
 
-    if (response.toolCalls && response.toolCalls.length > attack.budget.maxToolCalls) {
+    if (response.toolCalls && attack.budget && response.toolCalls.length > attack.budget.maxToolCalls) {
       throw new Error(`Tool call budget exceeded: ${response.toolCalls.length} > ${attack.budget.maxToolCalls}`)
     }
 
