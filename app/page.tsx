@@ -4,10 +4,12 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 
 export default function HomePage() {
   const [isLoaded, setIsLoaded] = useState(false);
   const [showFeatures, setShowFeatures] = useState(false);
+  const router = useRouter();
 
   useEffect(() => {
     // Trigger fade-in after component mounts
@@ -75,12 +77,27 @@ export default function HomePage() {
             Your AI's ultimate sparring partner. Kairo fights dirty so your agents stay sharp, safe, and unstoppable.
           </p>
 
-          <button className={`inline-flex items-center gap-3 bg-gradient-to-r from-blue-500/20 via-white/10 to-gray-300/20 backdrop-blur-md text-white px-8 py-4 rounded-lg text-lg font-semibold hover:from-blue-400/30 hover:via-white/20 hover:to-gray-200/30 transition-all duration-300 border border-blue-400/30 hover:border-blue-300/50 delay-1000 ${isLoaded ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
-            <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-            Test My Agent
-          </button>
+          <button
+      onClick={() => router.push("/run")}
+      className={`inline-flex items-center gap-3 bg-gradient-to-r from-blue-500/20 via-white/10 to-gray-300/20 backdrop-blur-md text-white px-8 py-4 rounded-lg text-lg font-semibold hover:from-blue-400/30 hover:via-white/20 hover:to-gray-200/30 transition-all duration-300 border border-blue-400/30 hover:border-blue-300/50 delay-1000 ${
+        isLoaded ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"
+      }`}
+    >
+      <svg
+        className="h-5 w-5"
+        fill="none"
+        stroke="currentColor"
+        viewBox="0 0 24 24"
+      >
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth="2"
+          d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+        />
+      </svg>
+      Test My Agent
+    </button>
         </div>
       </section>
 
