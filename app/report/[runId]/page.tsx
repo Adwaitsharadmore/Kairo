@@ -98,6 +98,8 @@ export default function ImprovedSafetyReport() {
   const [runProgress, setRunProgress] = useState(mockRunProgress)
   const [metrics, setMetrics] = useState(mockMetrics)
   const [loading, setLoading] = useState(true)
+  const [improvements, setImprovements] = useState<Array<{ title: string, category: string, impact: 'high'|'medium'|'low', rationale: string, actions: string[] }>>([])
+  const [loadingImprovements, setLoadingImprovements] = useState(false)
 
   useEffect(() => {
     // Try to load real data from localStorage
@@ -113,6 +115,34 @@ export default function ImprovedSafetyReport() {
     }
     setLoading(false)
   }, [])
+
+  // Fetch improvement suggestions from API (Gemini-backed with fallback)
+  useEffect(() => {
+    const fetchImprovements = async () => {
+      try {
+        setLoadingImprovements(true)
+        const payload = {
+          progress: { runId: runProgress.runId, results: runProgress.results },
+          metrics
+        }
+        const resp = await fetch(`/api/improvements/${runProgress.runId}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        })
+        if (resp.ok) {
+          const data = await resp.json()
+          setImprovements(data.suggestions || [])
+        }
+      } catch (e) {
+        console.error('Failed to fetch improvements', e)
+      } finally {
+        setLoadingImprovements(false)
+      }
+    }
+    if (!loading) fetchImprovements()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading])
 
   const riskAssessment = assessRisk(metrics as SafetyMetrics)
   const duration = (runProgress.endTime || Date.now()) - runProgress.startTime
@@ -184,7 +214,7 @@ export default function ImprovedSafetyReport() {
       </header>
 
       <div className="relative z-10 container mx-auto px-4 py-8">
-        <div className="max-w-7xl mx-auto">
+        <div className="max-w-7xl mx-auto space-y-12">
           {/* Report Header */}
           <div className="text-center mb-12">
             <h1 className="text-5xl md:text-6xl font-bold bg-gradient-to-r from-blue-400 via-gray-300 to-blue-300 bg-clip-text text-transparent mb-6">
@@ -247,7 +277,7 @@ export default function ImprovedSafetyReport() {
                         />
                       </svg>
                       <div className="absolute inset-0 flex items-center justify-center">
-                        <div className="text-center">
+                <div className="text-center">
                           <div className={`text-4xl font-bold ${getSafetyScoreColor(metrics.SafetyScore)}`}>
                             {Math.round(metrics.SafetyScore)}
                           </div>
@@ -671,6 +701,48 @@ export default function ImprovedSafetyReport() {
               </div>
             </div>
           </div>
+        
+
+        {/* Agent Improvement Suggestions */}
+        <div className="group relative overflow-hidden rounded-2xl border border-white/10 bg-slate-900/40 transition-all duration-300 hover:border-cyan-400/30 hover:bg-slate-900/60 mb-12">
+          <div className="pointer-events-none absolute -inset-px rounded-2xl opacity-0 transition group-hover:opacity-100" style={{ background: "radial-gradient(600px circle at var(--x,50%) var(--y,50%), rgba(56,189,248,.15), rgba(139,92,246,.08) 40%, transparent 60%)" }} />
+          <div className="relative p-6">
+            <div className="flex items-center gap-3 mb-6">
+              <Zap className="h-6 w-6 text-cyan-300" />
+              <h3 className="text-2xl font-bold text-white">Agent Improvement Suggestions</h3>
+            </div>
+
+            {loadingImprovements ? (
+              <div className="text-center text-slate-400">Generating suggestions…</div>
+            ) : improvements.length === 0 ? (
+              <div className="text-center text-slate-400">No suggestions available.</div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {improvements.map((s, idx) => (
+                  <div key={idx} className="bg-slate-800/30 rounded-lg p-4 border border-white/10">
+                    <div className="flex items-center justify-between mb-2">
+                      <h4 className="text-white font-semibold">{s.title}</h4>
+                      <span className={`text-xs px-2 py-1 rounded-full border ${
+                        s.impact === 'high' ? 'bg-red-500/20 text-red-300 border-red-500/40' :
+                        s.impact === 'medium' ? 'bg-yellow-500/20 text-yellow-300 border-yellow-500/40' :
+                        'bg-green-500/20 text-green-300 border-green-500/40'
+                      }`}>
+                        {s.impact.toUpperCase()}
+                      </span>
+                    </div>
+                    <div className="text-xs text-slate-400 mb-3">Category: {s.category}</div>
+                    <p className="text-slate-300 text-sm mb-3">{s.rationale}</p>
+                    <ul className="list-disc list-inside space-y-1 text-sm text-slate-200">
+                      {s.actions.map((a, i) => (
+                        <li key={i}>{a}</li>
+                      ))}
+                    </ul>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
         </div>
       </div>
     </div>
