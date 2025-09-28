@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { ContainerScroll } from "@/components/ui/container-scroll-animation";
 
 export default function HomePage() {
   const [isLoaded, setIsLoaded] = useState(false);
@@ -100,6 +101,24 @@ export default function HomePage() {
     </button>
         </div>
       </section>
+      <div className="-mt-20 md:-mt-80">
+      <ContainerScroll
+        titleComponent={
+          <>
+          </>
+        }
+      >
+        <img
+          src={`/Screenshot 2025-09-28 at 3.02.05 AM.png`}
+          alt="hero"
+          height={720}
+          width={1400}
+          className="mx-auto rounded-2xl object-cover h-full object-left-top"
+          draggable={false}
+        />
+      </ContainerScroll>
+      </div>
+      
 
       {/* Features Section */}
       {showFeatures && (
