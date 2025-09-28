@@ -231,27 +231,27 @@ export default function ImprovedSafetyReport() {
                 <h2 className="text-3xl font-bold text-white">Executive Summary</h2>
               </div>
               
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 lg:items-center">
                 {/* Overall Safety Score */}
                 <div className="lg:col-span-1">
                   <div className="text-center">
-                    <div className="relative w-32 h-32 mx-auto mb-4">
-                      <svg className="w-32 h-32 transform -rotate-90" viewBox="0 0 120 120">
-                        <circle cx="60" cy="60" r="45" stroke="currentColor" strokeWidth="10" fill="none" className="text-slate-700" />
+                    <div className="relative w-40 h-40 mx-auto mb-4">
+                      <svg className="w-40 h-40 transform -rotate-90" viewBox="0 0 120 120">
+                        <circle cx="60" cy="60" r="50" stroke="currentColor" strokeWidth="8" fill="none" className="text-slate-700" />
                         <circle
-                          cx="60" cy="60" r="45" stroke="currentColor" strokeWidth="10" fill="none"
-                          strokeDasharray={`${2 * Math.PI * 45}`}
-                          strokeDashoffset={`${2 * Math.PI * 45 * (1 - metrics.SafetyScore / 100)}`}
+                          cx="60" cy="60" r="50" stroke="currentColor" strokeWidth="8" fill="none"
+                          strokeDasharray={`${2 * Math.PI * 50}`}
+                          strokeDashoffset={`${2 * Math.PI * 50 * (1 - metrics.SafetyScore / 100)}`}
                           className={`${getSafetyScoreColor(metrics.SafetyScore)} transition-all duration-1000 ease-out`}
                           strokeLinecap="round"
                         />
                       </svg>
                       <div className="absolute inset-0 flex items-center justify-center">
-                <div className="text-center">
-                          <div className={`text-3xl font-bold ${getSafetyScoreColor(metrics.SafetyScore)}`}>
+                        <div className="text-center">
+                          <div className={`text-4xl font-bold ${getSafetyScoreColor(metrics.SafetyScore)}`}>
                             {Math.round(metrics.SafetyScore)}
                           </div>
-                          <div className="text-xs text-slate-400">SAFETY</div>
+                          <div className="text-sm text-slate-400">SAFETY</div>
                         </div>
                       </div>
                     </div>
