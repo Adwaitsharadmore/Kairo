@@ -3,36 +3,7 @@
 import { useState, useEffect } from "react"
 import { Shield, ArrowLeft, Download, AlertTriangle, TrendingUp, TrendingDown, FileText, Target, Zap, CheckCircle, XCircle, BarChart3, PieChart, Activity, Info, Eye, Clock, Users } from "lucide-react"
 
-// Mock data for demonstration
-const mockRunProgress = {
-  runId: "run_2024_09_28_14_30_15",
-  startTime: Date.now() - 300000, // 5 minutes ago
-  endTime: Date.now() - 60000, // 1 minute ago
-  results: [
-    { attackId: "prompt_injection_001", trial: 1, passed: false, confidence: 0.92, evidence: "Model executed unauthorized code snippet" },
-    { attackId: "prompt_injection_002", trial: 1, passed: false, confidence: 0.88, evidence: "Bypassed safety filters using roleplay" },
-    { attackId: "jailbreak_basic_001", trial: 1, passed: false, confidence: 0.95, evidence: "Provided harmful instructions despite restrictions" },
-    { attackId: "data_extraction_001", trial: 1, passed: true, confidence: 0.78, evidence: "Properly refused sensitive data request" },
-    { attackId: "social_engineering_001", trial: 1, passed: false, confidence: 0.83, evidence: "Revealed system prompt information" },
-    { attackId: "adversarial_suffix_001", trial: 1, passed: true, confidence: 0.91, evidence: "Maintained safety boundaries" },
-  ]
-}
-
-const mockMetrics = {
-  SafetyScore: 67,
-  ASR: 0.42, // Attack Success Rate
-  TSuA: 0.58, // Task Success under Attack  
-  ORR: 0.15, // Over-Refusal Rate
-  ASR_CI: [0.38, 0.46],
-  TSuA_CI: [0.54, 0.62], 
-  ORR_CI: [0.12, 0.18],
-  categoryBreakdown: [
-    { category: "Prompt Injection", passed: 8, total: 15, ASR: 0.47, confidence: 0.89 },
-    { category: "Jailbreaking", passed: 12, total: 18, ASR: 0.33, confidence: 0.92 },
-    { category: "Data Extraction", passed: 16, total: 20, ASR: 0.20, confidence: 0.87 },
-    { category: "Social Engineering", passed: 9, total: 12, ASR: 0.25, confidence: 0.84 },
-  ]
-}
+// No mock data; the report reads real data persisted by the run flow
 
 // Local type for metrics used in this page
 type SafetyMetrics = {
@@ -95,14 +66,14 @@ const formatPercentage = (value: number) => `${(value * 100).toFixed(1)}%`
 const formatConfidenceInterval = (ci: number[]) => `[${(ci[0] * 100).toFixed(1)}%, ${(ci[1] * 100).toFixed(1)}%]`
 
 export default function ImprovedSafetyReport() {
-  const [runProgress, setRunProgress] = useState(mockRunProgress)
-  const [metrics, setMetrics] = useState(mockMetrics)
+  const [runProgress, setRunProgress] = useState<any | null>(null)
+  const [metrics, setMetrics] = useState<SafetyMetrics | null>(null)
   const [loading, setLoading] = useState(true)
   const [improvements, setImprovements] = useState<Array<{ title: string, category: string, impact: 'high'|'medium'|'low', rationale: string, actions: string[] }>>([])
   const [loadingImprovements, setLoadingImprovements] = useState(false)
 
   useEffect(() => {
-    // Try to load real data from localStorage
+    // Load real data from localStorage written by the run flow
     try {
       const storedResults = localStorage.getItem("runResults")
       if (storedResults) {
@@ -112,8 +83,9 @@ export default function ImprovedSafetyReport() {
       }
     } catch (error) {
       console.error("Failed to load run results:", error)
+    } finally {
+      setLoading(false)
     }
-    setLoading(false)
   }, [])
 
   // Fetch improvement suggestions from API (Gemini-backed with fallback)
@@ -144,10 +116,24 @@ export default function ImprovedSafetyReport() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading])
 
+  if (loading || !runProgress || !metrics) {
+    return (
+      <div className="relative min-h-screen bg-black overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-br from-gray-900 via-black to-gray-900" />
+        <div className="relative z-10 min-h-screen flex items-center justify-center">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-cyan-400 mx-auto mb-6"></div>
+            <p className="text-xl text-gray-400">Loading safety report...</p>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   const riskAssessment = assessRisk(metrics as SafetyMetrics)
   const duration = (runProgress.endTime || Date.now()) - runProgress.startTime
   const totalTests = runProgress.results.length
-  const passedTests = runProgress.results.filter(r => r.passed).length
+  const passedTests = runProgress.results.filter((r: any) => r.passed).length
 
   if (loading) {
     return (
@@ -163,8 +149,8 @@ export default function ImprovedSafetyReport() {
     )
   }
 
-  // Check if we have real data or are using mock data
-  const isRealData = runProgress.runId !== mockRunProgress.runId
+  // We only render when real data is loaded
+  const isRealData = true
 
   return (
     <div className="relative min-h-screen bg-black overflow-hidden">
@@ -553,57 +539,74 @@ export default function ImprovedSafetyReport() {
                 <div className="flex items-center gap-2 mb-2">
                   <AlertTriangle className="h-5 w-5 text-red-400" />
                   <span className="text-red-300 font-semibold">
-                    {runProgress.results.filter(r => !r.passed).length} vulnerabilities detected
+                    {runProgress.results.filter((r: any) => !r.passed).length} vulnerabilities detected
                   </span>
                 </div>
                 <p className="text-red-200 text-sm">
-                  These represent successful attacks where your AI system behaved inappropriately or unsafely.
+                  These represent successful attacks where your AI system behaved inappropriately or unsafely. Each vulnerability below has specific improvement suggestions in the Agent Improvement Suggestions section.
                 </p>
               </div>
 
               <div className="space-y-4">
                   {runProgress.results
-                    .filter((result) => !result.passed)
+                    .filter((result: any) => !result.passed)
                   .slice(0, 6) // Show top 6 failures
-                    .map((result, index) => (
-                    <div key={`${result.attackId}-${result.trial}`} className="bg-slate-800/30 rounded-lg p-4 border border-white/10 hover:border-red-400/30 transition-colors">
-                      <div className="flex items-start justify-between mb-3">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-3 mb-2">
-                            <code className="text-cyan-300 text-sm bg-slate-700/50 px-2 py-1 rounded">
-                              {result.attackId}
-                            </code>
-                            <span className="inline-flex items-center px-2 py-1 text-xs font-medium bg-red-500/20 text-red-300 rounded-full border border-red-500/30">
-                              VULNERABILITY
-                            </span>
-                          </div>
-                          <p className="text-slate-300 text-sm leading-relaxed">
-                          {result.evidence}
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-3 ml-4">
-                          <div className="text-right">
-                            <div className="text-red-300 font-mono text-sm font-semibold">
-                              {(result.confidence * 100).toFixed(0)}%
+                    .map((result: any, index: number) => {
+                      // Get attack category for better context
+                      const attackCategory = result.attackId.includes('prompt-injection') || result.attackId.includes('inj-') ? 'prompt_injection' :
+                                           result.attackId.includes('context-') || result.attackId.includes('exfil') ? 'rag_leak' :
+                                           result.attackId.includes('command-') || result.attackId.includes('system-') ? 'tool_abuse' :
+                                           result.attackId.includes('harmful') ? 'harmful_content' : 'unknown'
+                      
+                      return (
+                        <div key={`${result.attackId}-${result.trial}`} className="bg-slate-800/30 rounded-lg p-4 border border-white/10 hover:border-red-400/30 transition-colors">
+                          <div className="flex items-start justify-between mb-3">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-3 mb-2">
+                                <code className="text-cyan-300 text-sm bg-slate-700/50 px-2 py-1 rounded">
+                                  {result.attackId}
+                                </code>
+                                <span className="inline-flex items-center px-2 py-1 text-xs font-medium bg-red-500/20 text-red-300 rounded-full border border-red-500/30">
+                                  VULNERABILITY
+                                </span>
+                                <span className="inline-flex items-center px-2 py-1 text-xs font-medium bg-slate-600/50 text-slate-300 rounded-full border border-slate-500/30">
+                                  {attackCategory.replace('_', ' ').toUpperCase()}
+                                </span>
+                              </div>
+                              <p className="text-slate-300 text-sm leading-relaxed mb-2">
+                                {result.evidence}
+                              </p>
+                              {result.craftedPrompt && (
+                                <div className="mt-2 p-2 bg-slate-700/30 rounded border border-slate-600/30">
+                                  <div className="text-xs text-slate-400 mb-1">Attack Prompt:</div>
+                                  <code className="text-xs text-slate-300 break-words">{result.craftedPrompt}</code>
+                                </div>
+                              )}
                             </div>
-                            <div className="text-xs text-slate-400">confidence</div>
-                          </div>
-                          <div className="w-16 h-2 bg-slate-700 rounded-full overflow-hidden">
-                            <div 
-                              className="h-full bg-red-400 transition-all duration-500"
-                              style={{ width: `${result.confidence * 100}%` }}
-                            />
+                            <div className="flex items-center gap-3 ml-4">
+                              <div className="text-right">
+                                <div className="text-red-300 font-mono text-sm font-semibold">
+                                  {(result.confidence * 100).toFixed(0)}%
+                                </div>
+                                <div className="text-xs text-slate-400">confidence</div>
+                              </div>
+                              <div className="w-16 h-2 bg-slate-700 rounded-full overflow-hidden">
+                                <div 
+                                  className="h-full bg-red-400 transition-all duration-500"
+                                  style={{ width: `${result.confidence * 100}%` }}
+                                />
+                              </div>
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    </div>
-                  ))}
+                      )
+                    })}
               </div>
               
-              {runProgress.results.filter(r => !r.passed).length > 6 && (
+              {runProgress.results.filter((r: any) => !r.passed).length > 6 && (
                 <div className="mt-6 text-center">
                   <p className="text-slate-400 text-sm">
-                    Showing 6 of {runProgress.results.filter(r => !r.passed).length} failed tests. 
+                    Showing 6 of {runProgress.results.filter((r: any) => !r.passed).length} failed tests. 
                     <span className="text-cyan-300 ml-1">Download full report for complete details.</span>
                   </p>
                 </div>
@@ -704,39 +707,71 @@ export default function ImprovedSafetyReport() {
         
 
         {/* Agent Improvement Suggestions */}
-        <div className="group relative overflow-hidden rounded-2xl border border-white/10 bg-slate-900/40 transition-all duration-300 hover:border-cyan-400/30 hover:bg-slate-900/60 mb-12">
-          <div className="pointer-events-none absolute -inset-px rounded-2xl opacity-0 transition group-hover:opacity-100" style={{ background: "radial-gradient(600px circle at var(--x,50%) var(--y,50%), rgba(56,189,248,.15), rgba(139,92,246,.08) 40%, transparent 60%)" }} />
+        <div className="group relative overflow-hidden rounded-2xl border border-cyan-400/30 bg-slate-900/60 transition-all duration-300 hover:border-cyan-300/50 hover:bg-slate-900/80 mb-12">
+          <div className="pointer-events-none absolute -inset-px rounded-2xl opacity-100 transition group-hover:opacity-100" style={{ background: "radial-gradient(600px circle at var(--x,50%) var(--y,50%), rgba(56,189,248,.25), rgba(139,92,246,.15) 40%, transparent 60%)" }} />
           <div className="relative p-6">
             <div className="flex items-center gap-3 mb-6">
               <Zap className="h-6 w-6 text-cyan-300" />
               <h3 className="text-2xl font-bold text-white">Agent Improvement Suggestions</h3>
+              <div className="ml-auto">
+                <span className="inline-flex items-center px-3 py-1 text-xs font-medium bg-cyan-500/20 text-cyan-300 rounded-full border border-cyan-500/30">
+                  {improvements.length} SPECIFIC RECOMMENDATIONS
+                </span>
+              </div>
+            </div>
+
+            <div className="mb-6 p-4 bg-cyan-500/10 border border-cyan-500/20 rounded-lg">
+              <div className="flex items-center gap-2 mb-2">
+                <Info className="h-5 w-5 text-cyan-400" />
+                <span className="text-cyan-300 font-semibold">Targeted Security Improvements</span>
+              </div>
+              <p className="text-cyan-200 text-sm">
+                These suggestions are specifically tailored to the vulnerabilities found in your AI system. Each recommendation addresses the exact attack patterns that succeeded against your agent.
+              </p>
             </div>
 
             {loadingImprovements ? (
-              <div className="text-center text-slate-400">Generating suggestions…</div>
+              <div className="text-center text-slate-400 py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-cyan-400 mx-auto mb-4"></div>
+                Analyzing vulnerabilities and generating targeted suggestions...
+              </div>
             ) : improvements.length === 0 ? (
-              <div className="text-center text-slate-400">No suggestions available.</div>
+              <div className="text-center text-slate-400 py-8">
+                <CheckCircle className="h-8 w-8 text-green-400 mx-auto mb-4" />
+                <p>No specific vulnerabilities detected. Your AI system appears to be well-secured!</p>
+              </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {improvements.map((s, idx) => (
-                  <div key={idx} className="bg-slate-800/30 rounded-lg p-4 border border-white/10">
-                    <div className="flex items-center justify-between mb-2">
-                      <h4 className="text-white font-semibold">{s.title}</h4>
-                      <span className={`text-xs px-2 py-1 rounded-full border ${
+                  <div key={idx} className="bg-slate-800/40 rounded-lg p-5 border border-white/20 hover:border-cyan-400/30 transition-all duration-300">
+                    <div className="flex items-start justify-between mb-3">
+                      <h4 className="text-white font-semibold text-lg leading-tight">{s.title}</h4>
+                      <span className={`text-xs px-3 py-1 rounded-full border font-medium ${
                         s.impact === 'high' ? 'bg-red-500/20 text-red-300 border-red-500/40' :
                         s.impact === 'medium' ? 'bg-yellow-500/20 text-yellow-300 border-yellow-500/40' :
                         'bg-green-500/20 text-green-300 border-green-500/40'
                       }`}>
-                        {s.impact.toUpperCase()}
+                        {s.impact.toUpperCase()} PRIORITY
                       </span>
                     </div>
-                    <div className="text-xs text-slate-400 mb-3">Category: {s.category}</div>
-                    <p className="text-slate-300 text-sm mb-3">{s.rationale}</p>
-                    <ul className="list-disc list-inside space-y-1 text-sm text-slate-200">
-                      {s.actions.map((a, i) => (
-                        <li key={i}>{a}</li>
-                      ))}
-                    </ul>
+                    <div className="flex items-center gap-2 mb-3">
+                      <span className="text-xs text-slate-400">Category:</span>
+                      <span className="text-xs px-2 py-1 bg-slate-700/50 text-slate-300 rounded border border-slate-600/30">
+                        {s.category.replace('_', ' ').toUpperCase()}
+                      </span>
+                    </div>
+                    <p className="text-slate-300 text-sm mb-4 leading-relaxed">{s.rationale}</p>
+                    <div className="space-y-2">
+                      <h5 className="text-slate-200 font-medium text-sm">Recommended Actions:</h5>
+                      <ul className="space-y-2">
+                        {s.actions.map((a, i) => (
+                          <li key={i} className="flex items-start gap-3 text-sm text-slate-200">
+                            <div className="w-1.5 h-1.5 bg-cyan-400 rounded-full mt-2 flex-shrink-0"></div>
+                            <span className="leading-relaxed">{a}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
                   </div>
                 ))}
               </div>
