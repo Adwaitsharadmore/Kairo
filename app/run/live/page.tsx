@@ -299,57 +299,87 @@ export default function LiveRunPage() {
             <div className="lg:col-span-2">
               <Card>
                 <CardHeader>
-                  <CardTitle>Test Results</CardTitle>
-                  <CardDescription>Live streaming of individual test outcomes</CardDescription>
+                  <CardTitle className="flex items-center gap-2">
+                    <span className="text-red-500">🎯</span>
+                    Live Attack Simulation
+                  </CardTitle>
+                  <CardDescription>Real-time AgentDojo attacks vs your agent</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="max-h-96 overflow-y-auto">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Test</TableHead>
-                          <TableHead>Category</TableHead>
-                          <TableHead>Status</TableHead>
-                          <TableHead>Evidence</TableHead>
-                          <TableHead>Duration</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {runProgress?.results.map((result, index) => (
-                          <TableRow key={`${result.attackId}-${result.trial}`}>
-                            <TableCell className="font-mono text-sm">
-                              {result.attackId}
-                              <span className="text-muted-foreground ml-1">#{result.trial}</span>
-                            </TableCell>
-                            <TableCell>
-                              <Badge
-                                variant="outline"
-                                className={getCategoryColor(
-                                  getAttackPack("prelim_safety_v1")?.attacks.find((a) => a.id === result.attackId)
-                                    ?.category || "",
-                                )}
-                              >
-                                {formatCategory(
-                                  getAttackPack("prelim_safety_v1")?.attacks.find((a) => a.id === result.attackId)
-                                    ?.category || "",
-                                )}
-                              </Badge>
-                            </TableCell>
-                            <TableCell>{getStatusBadge(result)}</TableCell>
-                            <TableCell className="font-mono text-xs max-w-32 truncate" title={result.evidence}>
-                              {result.evidence}
-                            </TableCell>
-                            <TableCell className="text-sm">{formatDuration(result.duration)}</TableCell>
-                          </TableRow>
-                        )) || (
-                          <TableRow>
-                            <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
-                              No results yet...
-                            </TableCell>
-                          </TableRow>
-                        )}
-                      </TableBody>
-                    </Table>
+                  <div className="max-h-96 overflow-y-auto space-y-4">
+                    {runProgress?.results.map((result, index) => (
+                      <div key={`${result.attackId}-${result.trial}`} className="border rounded-lg p-4 bg-gradient-to-r from-gray-50 to-gray-100">
+                        {/* Attack Header */}
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="flex items-center gap-3">
+                            <span className="font-medium text-sm font-mono">{result.attackId}</span>
+                            <Badge variant="outline" className="text-xs">
+                              Trial {result.trial}
+                            </Badge>
+                            <Badge
+                              variant={result.passed ? "default" : "destructive"}
+                              className="text-xs"
+                            >
+                              {result.passed ? "PASS" : "FAIL"}
+                            </Badge>
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            {formatDuration(result.duration)}
+                          </div>
+                        </div>
+
+                        {/* Attack Prompt */}
+                        <div className="mb-3">
+                          <div className="flex items-center gap-2 mb-2">
+                            <span className="text-xs font-medium text-red-600 bg-red-50 px-2 py-1 rounded border border-red-200">
+                              🎯 AGENTDOJO ATTACK
+                            </span>
+                          </div>
+                          <div className="bg-red-50 border border-red-200 rounded p-3 text-sm">
+                            <div className="font-mono text-red-800 whitespace-pre-wrap">
+                              {result.craftedPrompt ? 
+                                `"${result.craftedPrompt.substring(0, 250)}${result.craftedPrompt.length > 250 ? '...' : ''}"` : 
+                                'No attack prompt captured'
+                              }
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Agent Response */}
+                        <div className="mb-3">
+                          <div className="flex items-center gap-2 mb-2">
+                            <span className="text-xs font-medium text-blue-600 bg-blue-50 px-2 py-1 rounded border border-blue-200">
+                              🛡️ AGENT RESPONSE
+                            </span>
+                          </div>
+                          <div className="bg-blue-50 border border-blue-200 rounded p-3 text-sm">
+                            <div className="text-blue-800">
+                              {result.response?.text ? 
+                                `"${result.response.text.substring(0, 300)}${result.response.text.length > 300 ? '...' : ''}"` : 
+                                'No response captured'
+                              }
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Attack Result */}
+                        <div className="flex items-center justify-between">
+                          <div className="text-sm">
+                            <span className="font-medium">Evidence: </span>
+                            <span className="text-muted-foreground">{result.evidence}</span>
+                          </div>
+                          <div className="text-sm text-muted-foreground">
+                            Confidence: {(result.confidence * 100).toFixed(0)}%
+                          </div>
+                        </div>
+                      </div>
+                    )) || (
+                      <div className="text-center py-12 text-muted-foreground">
+                        <div className="animate-pulse text-lg mb-2">🛡️</div>
+                        <div>Waiting for AgentDojo attacks to begin...</div>
+                        <div className="text-sm mt-1">Your agent will be tested against sophisticated red team prompts</div>
+                      </div>
+                    )}
                   </div>
                 </CardContent>
               </Card>
