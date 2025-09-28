@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useRunJob } from './useRunJob'
 
 type AgentMode = 'local_stub' | 'openai' | 'anthropic' | 'webhook'
+type AttackerMode = 'static' | 'agentdojo'
 
 type AttackPackSummary = {
   id: string
@@ -33,6 +34,7 @@ export default function RunPage() {
   const [webhookUrl, setWebhookUrl] = useState('')    // only for webhook
   const [label, setLabel] = useState('Untitled run')
   const [trialsPerTest, setTrialsPerTest] = useState<number>(1)
+  const [attackerMode, setAttackerMode] = useState<AttackerMode>('static')
 
   // Attack packs (fetched)
   const [packs, setPacks] = useState<AttackPackSummary[]>([])
@@ -89,6 +91,7 @@ export default function RunPage() {
       attackPackId,
       trialsPerTest,
       runLabel: label,
+      attackerMode,
     }
     await start(payload)
   }
@@ -126,6 +129,19 @@ export default function RunPage() {
               onChange={(e) => setTrialsPerTest(parseInt(e.target.value || '1', 10))}
               className="border rounded px-2 py-1 w-full"
             />
+          </div>
+
+          {/* Attacker mode */}
+          <div>
+            <label className="block text-sm mb-1">Attacker</label>
+            <select
+              value={attackerMode}
+              onChange={(e) => setAttackerMode(e.target.value as AttackerMode)}
+              className="border rounded px-2 py-1 w-full"
+            >
+              <option value="static">Static (templates)</option>
+              <option value="agentdojo">AgentDojo attacker</option>
+            </select>
           </div>
 
           {/* Agent mode */}
@@ -235,37 +251,63 @@ export default function RunPage() {
       </section>
 
       <section className="rounded-xl border p-4">
-        <h2 className="font-medium mb-3">Live results</h2>
-        <div className="overflow-x-auto">
-          <table className="min-w-full text-sm">
-            <thead>
-              <tr className="text-left border-b">
-                <th className="py-2 pr-4">Attack</th>
-                <th className="py-2 pr-4">Trial</th>
-                <th className="py-2 pr-4">Passed</th>
-                <th className="py-2 pr-4">Evidence</th>
-                <th className="py-2 pr-4">Duration (ms)</th>
-              </tr>
-            </thead>
-            <tbody>
-              {results.map((r, i) => (
-                <tr key={`${r.attackId}-${r.trial}-${i}`} className="border-b last:border-0">
-                  <td className="py-2 pr-4">{r.attackId}</td>
-                  <td className="py-2 pr-4">{r.trial}</td>
-                  <td className="py-2 pr-4">
-                    <span className={r.passed ? 'text-green-700' : 'text-red-700'}>
-                      {r.passed ? 'PASS' : 'FAIL'}
-                    </span>
-                  </td>
-                  <td className="py-2 pr-4">{r.evidence}</td>
-                  <td className="py-2 pr-4">{r.duration}</td>
-                </tr>
-              ))}
-              {results.length === 0 && (
-                <tr><td colSpan={5} className="py-4 text-gray-500">No results yet.</td></tr>
-              )}
-            </tbody>
-          </table>
+        <h2 className="font-medium mb-3">Live Attack Simulation</h2>
+        <div className="space-y-4">
+          {results.map((r, i) => (
+            <div key={`${r.attackId}-${r.trial}-${i}`} className="border rounded-lg p-4 bg-gray-50">
+              {/* Attack Header */}
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-3">
+                  <span className="font-medium text-sm">{r.attackId}</span>
+                  <span className="text-xs bg-gray-200 px-2 py-1 rounded">Trial {r.trial}</span>
+                  <span className={`text-xs px-2 py-1 rounded ${r.passed ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                    {r.passed ? 'PASS' : 'FAIL'}
+                  </span>
+                </div>
+                <span className="text-xs text-gray-500">{r.duration}ms</span>
+              </div>
+
+              {/* Attack Prompt */}
+              <div className="mb-3">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-xs font-medium text-red-600 bg-red-50 px-2 py-1 rounded">🎯 AGENTDOJO ATTACK</span>
+                </div>
+                <div className="bg-red-50 border border-red-200 rounded p-3 text-sm">
+                  <div className="font-mono text-red-800 whitespace-pre-wrap">
+                    {r.craftedPrompt ? `"${r.craftedPrompt.substring(0, 200)}${r.craftedPrompt.length > 200 ? '...' : ''}"` : 'No attack prompt captured'}
+                  </div>
+                </div>
+              </div>
+
+              {/* Agent Response */}
+              <div className="mb-3">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-xs font-medium text-blue-600 bg-blue-50 px-2 py-1 rounded">🛡️ AGENT RESPONSE</span>
+                </div>
+                <div className="bg-blue-50 border border-blue-200 rounded p-3 text-sm">
+                  <div className="text-blue-800">
+                    {r.response?.text ? `"${r.response.text.substring(0, 300)}${r.response.text.length > 300 ? '...' : ''}"` : 'No response captured'}
+                  </div>
+                </div>
+              </div>
+
+              {/* Attack Result */}
+              <div className="flex items-center justify-between">
+                <div className="text-sm">
+                  <span className="font-medium">Evidence: </span>
+                  <span className="text-gray-700">{r.evidence}</span>
+                </div>
+                <div className="text-sm text-gray-500">
+                  Confidence: {(r.confidence * 100).toFixed(0)}%
+                </div>
+              </div>
+            </div>
+          ))}
+          {results.length === 0 && (
+            <div className="text-center py-8 text-gray-500">
+              <div className="animate-pulse">Waiting for attacks to begin...</div>
+            </div>
+          )}
         </div>
       </section>
 

@@ -8,7 +8,20 @@ type RunResult = {
   trial: number
   passed: boolean
   evidence: string
+  confidence: number
+  response: {
+    text: string
+    toolCalls?: any[]
+    usage?: {
+      promptTokens: number
+      completionTokens: number
+      totalTokens: number
+    }
+    cost?: number
+  }
   duration: number
+  error?: string
+  craftedPrompt?: string
 }
 
 type RunProgress = {

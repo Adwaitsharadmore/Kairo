@@ -7,10 +7,11 @@ import { packs } from '@/lib/attack-packs';
 import { createAgentAdapter } from '@/lib/agent-adapter';
 import { SafetyTestRunner, generateRunId } from '@/lib/test-runner';
 import { createRun, setRunStatus, setRunProgress } from '@/lib/run-store';
+import type { StartRunPayload } from '@/lib/types';
 
 export async function POST(req: Request) {
-  const { agentConfig, attackPackId = 'prelim_safety_v1', trialsPerTest = 1, runLabel } = await req.json();
-  console.log("API POST received agentConfig:", JSON.stringify(agentConfig, null, 2));
+  const { agentConfig, attackPackId = 'prelim_safety_v1', trialsPerTest = 1, runLabel, attackerMode = 'static' }: StartRunPayload = await req.json();
+  console.log("API POST received payload:", JSON.stringify({ agentConfig, attackPackId, trialsPerTest, runLabel, attackerMode }, null, 2));
   
   const pack = packs[attackPackId];
   if (!pack) return NextResponse.json({ error: 'unknown pack' }, { status: 400 });
@@ -22,7 +23,7 @@ export async function POST(req: Request) {
   setRunStatus(runId, 'running');
 
   console.log("About to create adapter with config:", agentConfig);
-  const adapter = createAgentAdapter(agentConfig);
+  const adapter = createAgentAdapter(agentConfig as any);
   console.log("Adapter created successfully");
 
   // fire-and-forget
@@ -30,7 +31,8 @@ export async function POST(req: Request) {
     try {
       const runner = new SafetyTestRunner(
         adapter, pack, Number(trialsPerTest || 1), runId,
-        (progress) => setRunProgress(runId, progress)
+        (progress) => setRunProgress(runId, progress),
+        attackerMode
       );
       const final = await runner.run();
       setRunProgress(runId, final);
