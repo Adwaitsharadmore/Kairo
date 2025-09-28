@@ -10,6 +10,8 @@ import { createRun, setRunStatus, setRunProgress } from '@/lib/run-store';
 
 export async function POST(req: Request) {
   const { agentConfig, attackPackId = 'prelim_safety_v1', trialsPerTest = 1, runLabel } = await req.json();
+  console.log("API POST received agentConfig:", JSON.stringify(agentConfig, null, 2));
+  
   const pack = packs[attackPackId];
   if (!pack) return NextResponse.json({ error: 'unknown pack' }, { status: 400 });
 
@@ -19,7 +21,9 @@ export async function POST(req: Request) {
   createRun(runId, runLabel);
   setRunStatus(runId, 'running');
 
+  console.log("About to create adapter with config:", agentConfig);
   const adapter = createAgentAdapter(agentConfig);
+  console.log("Adapter created successfully");
 
   // fire-and-forget
   (async () => {

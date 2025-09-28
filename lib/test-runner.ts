@@ -108,6 +108,7 @@ export class SafetyTestRunner {
   }
 
   private async runSingleTest(attack: AttackSpec, trial: number): Promise<TestResult> {
+    console.log(`runSingleTest called for attack ${attack.id}, trial ${trial}`)
     const startTime = Date.now()
 
     try {
@@ -117,16 +118,21 @@ export class SafetyTestRunner {
       })
 
       // Run the test with timeout
+      console.log("Starting test execution...")
       const testPromise = this.executeTest(attack, trial)
       const response = await Promise.race([testPromise, timeoutPromise])
+      console.log("Test execution completed successfully")
 
       // Check the result
+      console.log("Creating checker for attack:", attack.checker)
       const checker = createChecker(attack.checker)
-      const checkResult = checker.check({
+      console.log("Running checker...")
+      const checkResult = await checker.check({
         attack,
         response,
         trial,
       })
+      console.log("Checker result:", checkResult)
 
       return {
         attackId: attack.id,
@@ -138,6 +144,7 @@ export class SafetyTestRunner {
         duration: Date.now() - startTime,
       }
     } catch (error) {
+      console.error(`Error in runSingleTest for attack ${attack.id}, trial ${trial}:`, error)
       return {
         attackId: attack.id,
         trial,
@@ -155,14 +162,19 @@ export class SafetyTestRunner {
   }
 
   private async executeTest(attack: AttackSpec, trial: number): Promise<AgentResponse> {
+    console.log(`executeTest called for attack ${attack.id}, trial ${trial}`)
+    
     // Use seeded randomization for deterministic results
     const seed = attack.seed + trial
 
     // Provide mock tools for the agent to potentially abuse
     const tools = MOCK_TOOLS
+    console.log("Using mock tools:", tools.map(t => t.name))
 
     // Call the agent with the attack prompt
-    const response = await this.adapter.call(attack.instructions, tools)
+    console.log("Calling adapter with goal:", attack.objective.goal)
+    const response = await this.adapter.call(attack.objective.goal, tools)
+    console.log("Adapter response received:", { text: response.text?.substring(0, 100), toolCalls: response.toolCalls?.length })
 
     // Validate response doesn't exceed budget
     if (response.usage && response.usage.totalTokens > attack.budget.maxTokens) {

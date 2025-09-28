@@ -1,14 +1,16 @@
 // Agent adapter interface and implementations
 // lib/agent-adapter.ts (top of file)
+import { GoogleGenerativeAI, SchemaType } from "@google/generative-ai"
 export interface AgentAdapter {
   validateConfig(): Promise<boolean>;
   call(prompt: string, tools?: Tool[]): Promise<AgentResponse>;
 }
  // Import AgentAdapter to fix undeclared variable error
 
+
 export interface AgentConfig {
   name: string
-  mode: "openai" | "anthropic" | "webhook" | "local_stub"
+  mode: "openai" | "anthropic" | "webhook" | "local_stub" | "gemini"
   apiKey?: string
   webhookUrl?: string
   model?: string
@@ -40,6 +42,94 @@ export interface Tool {
   parameters: Record<string, any>
 }
 
+// --- Gemini adapter ---
+export class GeminiAdapter implements AgentAdapter {
+  private config: AgentConfig
+  private client: GoogleGenerativeAI
+
+  constructor(config: AgentConfig) {
+    this.config = config
+    if (!config.apiKey) throw new Error("GeminiAdapter: missing apiKey")
+    this.client = new GoogleGenerativeAI(config.apiKey)
+  }
+
+  async validateConfig(): Promise<boolean> {
+    try {
+      // simple noop call: create model
+      this.client.getGenerativeModel({
+        model: this.config.model || "gemini-2.5-flash",
+      })
+      return true
+    } catch {
+      return false
+    }
+  }
+
+  async call(prompt: string, tools?: Tool[]): Promise<AgentResponse> {
+    const functionDeclarations = this.toFunctionDeclarations(tools)
+
+    const model = this.client.getGenerativeModel({
+      model: this.config.model || "gemini-2.5-flash",
+      // You can inject a system instruction here if you want:
+      // systemInstruction: "You are a careful, policy-following assistant..."
+      tools: functionDeclarations ? [{ functionDeclarations }] : undefined,
+    })
+
+    const resp = await model.generateContent({
+      contents: [{ role: "user", parts: [{ text: prompt }]}],
+      generationConfig: {
+        maxOutputTokens: 1024,
+        temperature: 0.2,
+      },
+    })
+
+    const text = resp.response?.text() ?? ""
+    const toolCalls = this.extractToolCalls(resp.response)
+
+    const usage = resp.response?.usageMetadata as any ?? {}
+    return {
+      text,
+      toolCalls,
+      usage: {
+        promptTokens: usage.promptTokenCount || 0,
+        completionTokens: usage.candidatesTokenCount || usage.outputTokenCount || 0,
+        totalTokens: usage.totalTokenCount || 0,
+      },
+      cost: 0,
+    }
+  }
+
+  private toFunctionDeclarations(tools?: Tool[]) {
+    if (!tools?.length) return undefined
+    return tools.map((t) => ({
+      name: String(t.name || "").slice(0, 64) || "tool",
+      description: String(t.description || ""),
+      parameters: {
+        type: SchemaType.OBJECT,
+        properties: t.parameters?.properties || {},
+        required: t.parameters?.required || [],
+      },
+    }))
+  }
+
+  private extractToolCalls(googleResp: any): ToolCall[] {
+    const calls: ToolCall[] = []
+    try {
+      const parts = googleResp?.candidates?.[0]?.content?.parts || []
+      for (const p of parts) {
+        if (p.functionCall?.name) {
+          calls.push({
+            id: `fc_${Math.random().toString(36).slice(2)}`,
+            name: p.functionCall.name,
+            arguments: p.functionCall.args || {},
+            result: `BLOCKED: ${p.functionCall.name} execution blocked`,
+          })
+        }
+      }
+    } catch {}
+    return calls
+  }
+}
 // Mock tools for safe testing
 export const MOCK_TOOLS: Tool[] = [
   {
@@ -331,14 +421,24 @@ export class WebhookAdapter implements AgentAdapter {
 
 // Factory function to create appropriate adapter
 export function createAgentAdapter(config: AgentConfig, seed?: number): AgentAdapter {
+  console.log("createAgentAdapter called with config:", JSON.stringify(config, null, 2))
+  console.log("config.mode:", config.mode)
+  
   switch (config.mode) {
     case "openai":
+      console.log("Creating OpenAIAdapter")
       return new OpenAIAdapter(config)
     case "anthropic":
+      console.log("Creating AnthropicAdapter")
       return new AnthropicAdapter(config)
     case "webhook":
+      console.log("Creating WebhookAdapter")
       return new WebhookAdapter(config)
+    case "gemini":
+      console.log("Creating GeminiAdapter")
+      return new GeminiAdapter(config)
     default:
+      console.error(`Unsupported agent mode: ${config.mode}`)
       throw new Error(`Unsupported agent mode: ${config.mode}`)
   }
 }
