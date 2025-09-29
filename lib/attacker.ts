@@ -10,14 +10,20 @@ export async function craftAttackPrompt(
   attackCategory?: string
 ): Promise<string> {
   if (attackerMode === 'agentdojo') {
-    const url = process.env.AGENTDOJO_URL ?? 'http://127.0.0.1:7001/craft'
+    // Use your ngrok URL directly
+    const url = process.env.AGENTDOJO_URL ?? 'https://incursive-kacie-deflectingly.ngrok-free.dev/craft'
     console.log('🎯 AGENTDOJO ATTACK INITIATED')
+    console.log('🎯 Using URL:', url)
     console.log('Attack Objective:', JSON.stringify(objective, null, 2))
     try {
-      // Request realized attack with timeout
-      const r = await fetch(`${url}?timeout_sec=10&realize=true`, {
+      // Request realized attack with longer timeout and better headers
+      const r = await fetch(`${url}?timeout_sec=15&realize=true`, {
         method: 'POST',
-        headers: {'Content-Type':'application/json'},
+        headers: {
+          'Content-Type': 'application/json',
+          'ngrok-skip-browser-warning': 'true', // Skip ngrok browser warning
+          'User-Agent': 'AgentSafetyHarness/1.0'
+        },
         body: JSON.stringify({
           goal: objective.goal,
           constraints: objective.constraints,
@@ -25,12 +31,15 @@ export async function craftAttackPrompt(
           attack_type: attackCategory || 'prompt_injection', // Use actual attack category
           seed: Math.floor(Math.random() * 10000)
         }),
+        signal: AbortSignal.timeout(20000) // 20 second timeout
       })
       
       // Add delay after AgentDojo service call to prevent rate limiting
       await new Promise(resolve => setTimeout(resolve, 1000))
       if (!r.ok) {
-        console.warn(`AgentDojo sidecar failed: ${r.status}, falling back to static`)
+        const errorText = await r.text().catch(() => 'Unknown error')
+        console.warn(`AgentDojo sidecar failed: ${r.status} ${r.statusText}`, errorText)
+        console.warn('Falling back to static mode')
         // Fall through to static fallback
       } else {
         const craftRes = await r.json()
@@ -55,7 +64,12 @@ export async function craftAttackPrompt(
         }
       }
     } catch (error) {
-      console.warn('AgentDojo sidecar unavailable, falling back to static:', error)
+      console.warn('AgentDojo sidecar unavailable, falling back to static:')
+      console.warn('Error details:', error)
+      if (error instanceof Error) {
+        console.warn('Error message:', error.message)
+        console.warn('Error cause:', error.cause)
+      }
       // Fall through to static fallback
     }
   }
