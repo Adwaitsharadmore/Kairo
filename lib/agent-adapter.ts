@@ -394,27 +394,152 @@ export class WebhookAdapter implements AgentAdapter {
   }
 
   async call(prompt: string, tools?: Tool[]): Promise<AgentResponse> {
-    const response = await fetch(this.config.webhookUrl!, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        prompt,
-        tools,
-        max_tokens: 1024,
-      }),
-    })
+    console.log(`WebhookAdapter.call: Making request to ${this.config.webhookUrl}`)
+    console.log(`WebhookAdapter.call: Prompt length: ${prompt.length}`)
+    console.log(`WebhookAdapter.call: Tools: ${tools?.length || 0}`)
+    
+    // Retry logic for rate limiting and temporary failures
+    const maxRetries = 3
+    let lastError: Error | null = null
+    
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        console.log(`WebhookAdapter.call: Attempt ${attempt}/${maxRetries}`)
+        
+        const response = await fetch(this.config.webhookUrl!, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            prompt,
+            tools,
+            max_tokens: 1024,
+          }),
+          // Add timeout to prevent hanging
+          signal: AbortSignal.timeout(30000), // 30 second timeout
+        })
 
-    if (!response.ok) {
-      throw new Error(`Webhook error: ${response.statusText}`)
+        console.log(`WebhookAdapter.call: Response status: ${response.status}`)
+        console.log(`WebhookAdapter.call: Response headers:`, Object.fromEntries(response.headers.entries()))
+
+        if (!response.ok) {
+          const errorText = await response.text()
+          console.error(`WebhookAdapter.call: Error response body:`, errorText)
+          
+          // Check if it's a rate limit error (429) or temporary server error (5xx)
+          if (response.status === 429 || (response.status >= 500 && response.status < 600)) {
+            if (attempt < maxRetries) {
+              const delay = Math.min(1000 * Math.pow(2, attempt - 1), 10000) // Exponential backoff, max 10s
+              console.log(`WebhookAdapter.call: Rate limit/server error, retrying in ${delay}ms...`)
+              await new Promise(resolve => setTimeout(resolve, delay))
+              lastError = new Error(`Webhook error: ${response.status} ${response.statusText} - ${errorText}`)
+              continue
+            }
+          }
+          
+          throw new Error(`Webhook error: ${response.status} ${response.statusText} - ${errorText}`)
+        }
+
+        let data
+        try {
+          data = await response.json()
+          console.log(`WebhookAdapter.call: Response data:`, {
+            hasText: !!data.text,
+            textLength: data.text?.length || 0,
+            toolCallsCount: data.toolCalls?.length || 0,
+            hasUsage: !!data.usage
+          })
+        } catch (jsonError) {
+          console.error(`WebhookAdapter.call: JSON parse error:`, jsonError)
+          // If JSON parsing fails, try to get the raw text
+          const rawText = await response.text()
+          console.log(`WebhookAdapter.call: Raw response text:`, rawText.substring(0, 200))
+          
+          // Return the raw text as the response
+          return {
+            text: `[RAW_RESPONSE] ${rawText}`,
+            toolCalls: [],
+            usage: { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
+            cost: 0,
+          }
+        }
+
+        // Success! Return the response
+        return {
+          text: data.text || "",
+          toolCalls: data.toolCalls || [],
+          usage: data.usage || { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
+          cost: data.cost || 0,
+        }
+        
+      } catch (error) {
+        console.error(`WebhookAdapter.call: Attempt ${attempt} failed:`, error)
+        lastError = error instanceof Error ? error : new Error(String(error))
+        
+        // If this is the last attempt, break out of the retry loop
+        if (attempt === maxRetries) {
+          break
+        }
+        
+        // For network errors, wait before retrying
+        if (error instanceof Error && (
+          error.message.includes('fetch failed') || 
+          error.message.includes('network') ||
+          error.name === 'AbortError'
+        )) {
+          const delay = Math.min(1000 * Math.pow(2, attempt - 1), 5000) // Exponential backoff, max 5s
+          console.log(`WebhookAdapter.call: Network error, retrying in ${delay}ms...`)
+          await new Promise(resolve => setTimeout(resolve, delay))
+        }
+      }
     }
-
-    const data = await response.json()
-
+    
+    // If we get here, all retries failed
+    console.error(`WebhookAdapter.call: All ${maxRetries} attempts failed`)
+    
+    // Return appropriate error response based on the last error
+    if (lastError instanceof Error) {
+      if (lastError.message.includes('429') || lastError.message.includes('Too Many Requests')) {
+        return {
+          text: `[RATE_LIMIT] API quota exceeded. Please wait before retrying. ${lastError.message}`,
+          toolCalls: [],
+          usage: { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
+          cost: 0,
+        }
+      }
+      
+      if (lastError.name === 'AbortError' || lastError.message.includes('timeout')) {
+        return {
+          text: `[TIMEOUT] Webhook request timed out after 30 seconds`,
+          toolCalls: [],
+          usage: { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
+          cost: 0,
+        }
+      }
+      
+      if (lastError.message.includes('fetch failed') || lastError.message.includes('network')) {
+        return {
+          text: `[NETWORK_ERROR] Failed to connect to webhook: ${lastError.message}`,
+          toolCalls: [],
+          usage: { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
+          cost: 0,
+        }
+      }
+      
+      // For other errors, include the error message in the response
+      return {
+        text: `[WEBHOOK_ERROR] ${lastError.message}`,
+        toolCalls: [],
+        usage: { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
+        cost: 0,
+      }
+    }
+    
+    // Fallback for unknown errors
     return {
-      text: data.text || "",
-      toolCalls: data.toolCalls || [],
-      usage: data.usage || { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
-      cost: data.cost || 0,
+      text: `[UNKNOWN_ERROR] Webhook call failed with unknown error`,
+      toolCalls: [],
+      usage: { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
+      cost: 0,
     }
   }
 }

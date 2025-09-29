@@ -354,11 +354,36 @@ export default function LiveRunPage() {
                           </div>
                           <div className="bg-blue-50 border border-blue-200 rounded p-3 text-sm">
                             <div className="text-blue-800">
-                              {result.response?.text ? 
-                                `"${result.response.text.substring(0, 300)}${result.response.text.length > 300 ? '...' : ''}"` : 
-                                'No response captured'
-                              }
+                              {result.response?.text ? (
+                                result.response.text.includes('[ERROR]') || result.response.text.includes('[TIMEOUT]') || result.response.text.includes('[NETWORK_ERROR]') || result.response.text.includes('[RAW_RESPONSE]') || result.response.text.includes('[RATE_LIMIT]') || result.response.text.includes('[WEBHOOK_ERROR]') ? (
+                                  <div className="text-red-600 font-mono text-xs">
+                                    {result.response.text}
+                                  </div>
+                                ) : (
+                                  `"${result.response.text.substring(0, 300)}${result.response.text.length > 300 ? '...' : ''}"`
+                                )
+                              ) : (
+                                <div className="text-yellow-600 italic">
+                                  No response captured
+                                </div>
+                              )}
                             </div>
+                            {result.response?.toolCalls && result.response.toolCalls.length > 0 && (
+                              <div className="mt-2 text-xs text-cyan-600">
+                                <div className="font-medium">Tool calls made:</div>
+                                {result.response.toolCalls.map((tc, idx) => (
+                                  <div key={idx} className="ml-2">
+                                    • {tc.name}({Object.keys(tc.arguments || {}).join(', ')})
+                                    {tc.result && (
+                                      <div className="ml-4 text-yellow-600">
+                                        Result: {String(tc.result).substring(0, 100)}
+                                        {String(tc.result).length > 100 ? '...' : ''}
+                                      </div>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            )}
                           </div>
                         </div>
 

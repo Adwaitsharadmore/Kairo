@@ -6,19 +6,19 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+// import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select" // No longer needed
 import { Badge } from "@/components/ui/badge"
 import { Play, Shield, AlertTriangle, CheckCircle, XCircle, FileText, Download } from "lucide-react"
 
-type AgentMode = 'local_stub' | 'openai' | 'anthropic' | 'webhook'
+type AgentMode = 'webhook' // Only webhook mode supported
 type AttackerMode = 'static' | 'agentdojo'
 
-type AttackPackSummary = {
-  id: string
-  name?: string
-  description?: string
-  tests?: number
-}
+// type AttackPackSummary = { // No longer needed
+//   id: string
+//   name?: string
+//   description?: string
+//   tests?: number
+// }
 
 export default function RunPage() {
   const {
@@ -34,63 +34,29 @@ export default function RunPage() {
   } = useRunJob()
 
   // Configurable UI state (no hardcoded defaults except safe placeholders)
-  const [agentMode, setAgentMode] = useState<AgentMode>('local_stub')
+  const agentMode: AgentMode = 'webhook' // Fixed to webhook
   const [agentName, setAgentName] = useState('MyAgent')
-  const [model, setModel] = useState('')              // let users set per provider
-  const [apiKey, setApiKey] = useState('')            // only for openai/anthropic
+  // Removed model and apiKey since we only use webhook mode
   const [webhookUrl, setWebhookUrl] = useState('')    // only for webhook
   const [label, setLabel] = useState('Untitled run')
   const [trialsPerTest, setTrialsPerTest] = useState<number>(1)
-  const [attackerMode, setAttackerMode] = useState<AttackerMode>('static')
+  const attackerMode: AttackerMode = 'agentdojo' // Fixed to AgentDojo Attacker
 
-  // Attack packs (fetched)
-  const [packs, setPacks] = useState<AttackPackSummary[]>([])
-  const [attackPackId, setAttackPackId] = useState<string>('')
-
-  useEffect(() => {
-    let cancelled = false
-    ;(async () => {
-      try {
-        const res = await fetch('/api/attack-packs')
-        const data = await res.json()
-        if (!cancelled) {
-          const list: AttackPackSummary[] = Array.isArray(data) ? data : data.packs || []
-          setPacks(list)
-          if (!attackPackId && list.length > 0) {
-            setAttackPackId(list[0].id)
-          }
-        }
-      } catch (e) {
-        console.error('Failed to load attack packs', e)
-      }
-    })()
-    return () => { cancelled = true }
-  }, []) // load once
+  // Fixed attack pack and attacker mode
+  const attackPackId = 'dynamic_redteam_v1' // Advanced Security Testing Pack
 
   const agentConfig = useMemo(() => {
-    const base: any = {
-      mode: agentMode,
+    return {
+      mode: 'webhook',
       name: agentName,
-      model: model || undefined,
+      webhookUrl: webhookUrl || undefined
     }
-    if (agentMode === 'local_stub') {
-      base.demoMode = true
-    }
-    if (agentMode === 'openai' || agentMode === 'anthropic') {
-      base.apiKey = apiKey || undefined
-    }
-    if (agentMode === 'webhook') {
-      base.webhookUrl = webhookUrl || undefined
-    }
-    return base
-  }, [agentMode, agentName, model, apiKey, webhookUrl])
+  }, [agentName, webhookUrl])
 
   const canStart =
-    !!attackPackId &&
     trialsPerTest > 0 &&
     agentName.trim().length > 0 &&
-    (agentMode !== 'webhook' || webhookUrl.trim().length > 0) &&
-    ((agentMode !== 'openai' && agentMode !== 'anthropic') || apiKey.trim().length > 0)
+    webhookUrl.trim().length > 0
 
   const onStart = async () => {
     const payload = {
@@ -141,13 +107,11 @@ export default function RunPage() {
       </header>
 
       <div className="relative z-10 mx-auto max-w-6xl p-6 space-y-8">
-        <div className="text-center mb-8">
-          <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-blue-400 via-gray-300 to-blue-300 bg-clip-text text-transparent mb-4">
+        <div className="mb-8">
+          <h1 className="text-4xl md:text-5xl font-semibold bg-gradient-to-r from-blue-400 via-gray-300 to-blue-300 bg-clip-text text-transparent mb-4 leading-tighter">
             Agent Safety Harness
           </h1>
-          <p className="text-xl text-gray-400 max-w-3xl mx-auto">
-            Test your AI agent against sophisticated attacks and validate its security posture
-          </p>
+        
         </div>
 
         <Card className="group relative overflow-hidden rounded-2xl border border-white/10 bg-slate-900/40 transition-all duration-300 hover:border-cyan-400/30 hover:bg-slate-900/60">
@@ -158,26 +122,17 @@ export default function RunPage() {
               Test Configuration
             </CardTitle>
             <CardDescription className="text-slate-300">
-              Configure your agent and attack parameters
+              Configure your webhook agent (using Advanced Security Testing Pack with AgentDojo Attacker)
             </CardDescription>
           </CardHeader>
           <CardContent className="relative space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Attack pack */}
+              {/* Attack pack - Fixed to Advanced Security Testing Pack */}
               <div className="space-y-2">
                 <Label className="text-white font-medium">Attack pack</Label>
-                <Select value={attackPackId} onValueChange={setAttackPackId}>
-                  <SelectTrigger className="bg-slate-800/50 border-white/10 text-white">
-                    <SelectValue placeholder="Select attack pack" />
-                  </SelectTrigger>
-                  <SelectContent className="bg-slate-800 border-white/10">
-                    {packs.map((p) => (
-                      <SelectItem key={p.id} value={p.id} className="text-white hover:bg-slate-700">
-                        {p.name || p.id} {p.tests ? `(${p.tests} tests)` : ''}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <div className="bg-slate-800/50 border border-white/10 text-white px-3 py-2 rounded-md">
+                  <span className="text-white">Advanced Security Testing Pack</span>
+                </div>
               </div>
 
               {/* Trials */}
@@ -193,34 +148,20 @@ export default function RunPage() {
                 />
               </div>
 
-              {/* Attacker mode */}
+              {/* Attacker - Fixed to AgentDojo Attacker */}
               <div className="space-y-2">
                 <Label className="text-white font-medium">Attacker</Label>
-                <Select value={attackerMode} onValueChange={(value) => setAttackerMode(value as AttackerMode)}>
-                  <SelectTrigger className="bg-slate-800/50 border-white/10 text-white">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent className="bg-slate-800 border-white/10">
-                    <SelectItem value="static" className="text-white hover:bg-slate-700">Static (templates)</SelectItem>
-                    <SelectItem value="agentdojo" className="text-white hover:bg-slate-700">AgentDojo attacker</SelectItem>
-                  </SelectContent>
-                </Select>
+                <div className="bg-slate-800/50 border border-white/10 text-white px-3 py-2 rounded-md">
+                  <span className="text-white">AgentDojo Attacker</span>
+                </div>
               </div>
 
-              {/* Agent mode */}
+              {/* Agent mode - Fixed to webhook */}
               <div className="space-y-2">
                 <Label className="text-white font-medium">Agent mode</Label>
-                <Select value={agentMode} onValueChange={(value) => setAgentMode(value as AgentMode)}>
-                  <SelectTrigger className="bg-slate-800/50 border-white/10 text-white">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent className="bg-slate-800 border-white/10">
-                    <SelectItem value="local_stub" className="text-white hover:bg-slate-700">local_stub (demo)</SelectItem>
-                    <SelectItem value="openai" className="text-white hover:bg-slate-700">openai</SelectItem>
-                    <SelectItem value="anthropic" className="text-white hover:bg-slate-700">anthropic</SelectItem>
-                    <SelectItem value="webhook" className="text-white hover:bg-slate-700">webhook</SelectItem>
-                  </SelectContent>
-                </Select>
+                <div className="bg-slate-800/50 border border-white/10 text-white px-3 py-2 rounded-md">
+                  <span className="text-white">Webhook</span>
+                </div>
               </div>
 
               {/* Agent name */}
@@ -234,52 +175,19 @@ export default function RunPage() {
                 />
               </div>
 
-              {/* Model (optional, shown for all) */}
-              <div className="space-y-2">
-                <Label className="text-white font-medium">Model (optional)</Label>
+              {/* Webhook URL */}
+              <div className="md:col-span-2 space-y-2">
+                <Label className="text-white font-medium">Webhook URL</Label>
                 <Input
                   className="bg-slate-800/50 border-white/10 text-white placeholder:text-gray-400"
-                  value={model}
-                  onChange={(e) => setModel(e.target.value)}
-                  placeholder={agentMode === 'openai'
-                    ? 'e.g., gpt-4o-mini'
-                    : agentMode === 'anthropic'
-                    ? 'e.g., claude-3-haiku-20240307'
-                    : agentMode === 'webhook'
-                    ? '(your server will decide)'
-                    : '(ignored in demo)'}
+                  value={webhookUrl}
+                  onChange={(e) => setWebhookUrl(e.target.value)}
+                  placeholder="https://your-server.com/chat"
                 />
+                <p className="text-xs text-slate-400">
+                  Your webhook should accept POST {"{ prompt, tools, max_tokens }"} and return {"{ text, toolCalls, usage }"}.
+                </p>
               </div>
-
-              {/* API Key field (conditional) */}
-              {(agentMode === 'openai' || agentMode === 'anthropic') && (
-                <div className="space-y-2">
-                  <Label className="text-white font-medium">{agentMode} API key</Label>
-                  <Input
-                    className="bg-slate-800/50 border-white/10 text-white placeholder:text-gray-400"
-                    value={apiKey}
-                    onChange={(e) => setApiKey(e.target.value)}
-                    placeholder={`Paste your ${agentMode} key`}
-                    type="password"
-                  />
-                </div>
-              )}
-
-              {/* Webhook URL (conditional) */}
-              {agentMode === 'webhook' && (
-                <div className="md:col-span-2 space-y-2">
-                  <Label className="text-white font-medium">Webhook URL</Label>
-                  <Input
-                    className="bg-slate-800/50 border-white/10 text-white placeholder:text-gray-400"
-                    value={webhookUrl}
-                    onChange={(e) => setWebhookUrl(e.target.value)}
-                    placeholder="http://localhost:9001/chat"
-                  />
-                  <p className="text-xs text-slate-400">
-                    Your webhook should accept POST {"{ prompt, tools, max_tokens }"} and return {"{ text, toolCalls, usage }"}.
-                  </p>
-                </div>
-              )}
 
               {/* Run label */}
               <div className="md:col-span-2 space-y-2">
@@ -385,8 +293,36 @@ export default function RunPage() {
                     </div>
                     <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-4">
                       <div className="text-blue-200 text-sm">
-                        {r.response?.text ? `"${r.response.text.substring(0, 300)}${r.response.text.length > 300 ? '...' : ''}"` : 'No response captured'}
+                        {r.response?.text ? (
+                          r.response.text.includes('[ERROR]') || r.response.text.includes('[TIMEOUT]') || r.response.text.includes('[NETWORK_ERROR]') || r.response.text.includes('[RAW_RESPONSE]') || r.response.text.includes('[RATE_LIMIT]') || r.response.text.includes('[WEBHOOK_ERROR]') ? (
+                            <div className="text-red-300 font-mono text-xs">
+                              {r.response.text}
+                            </div>
+                          ) : (
+                            `"${r.response.text.substring(0, 300)}${r.response.text.length > 300 ? '...' : ''}"`
+                          )
+                        ) : (
+                          <div className="text-yellow-300 italic">
+                            No response captured
+                          </div>
+                        )}
                       </div>
+                      {r.response?.toolCalls && r.response.toolCalls.length > 0 && (
+                        <div className="mt-2 text-xs text-cyan-300">
+                          <div className="font-medium">Tool calls made:</div>
+                          {r.response.toolCalls.map((tc, idx) => (
+                            <div key={idx} className="ml-2">
+                              • {tc.name}({Object.keys(tc.arguments || {}).join(', ')})
+                              {tc.result && (
+                                <div className="ml-4 text-yellow-300">
+                                  Result: {String(tc.result).substring(0, 100)}
+                                  {String(tc.result).length > 100 ? '...' : ''}
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </div>
 

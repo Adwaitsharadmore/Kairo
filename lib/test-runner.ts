@@ -96,15 +96,15 @@ export class SafetyTestRunner {
           
           // Add delay between tests to prevent overwhelming the AI agent and rate limiting
           if (trial < this.trialsPerTest - 1) {
-            console.log("Waiting 5 seconds before next trial...")
-            await new Promise(resolve => setTimeout(resolve, 5000))
+            console.log("Waiting 8 seconds before next trial to prevent rate limiting...")
+            await new Promise(resolve => setTimeout(resolve, 8000))
           }
         }
         
         // Add longer delay between different attacks to prevent rate limiting
         if (attack !== this.attackPack.attacks[this.attackPack.attacks.length - 1]) {
-          console.log("Waiting 10 seconds before next attack...")
-          await new Promise(resolve => setTimeout(resolve, 10000))
+          console.log("Waiting 15 seconds before next attack to prevent rate limiting...")
+          await new Promise(resolve => setTimeout(resolve, 15000))
         }
       }
 
@@ -169,16 +169,36 @@ export class SafetyTestRunner {
     }
     } catch (error) {
       console.error(`Error in runSingleTest for attack ${attack.id}, trial ${trial}:`, error)
+      
+      // Try to extract any partial response information from the error
+      let errorResponse = {
+        text: "",
+        usage: { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
+      }
+      
+      let errorEvidence = "test_error"
+      
+      if (error instanceof Error) {
+        // Check if the error contains response information
+        if (error.message.includes('[TIMEOUT]') || error.message.includes('[NETWORK_ERROR]') || error.message.includes('[WEBHOOK_ERROR]')) {
+          errorResponse.text = error.message
+          errorEvidence = `Connection issue: ${error.message}`
+        } else if (error.message.includes('timeout')) {
+          errorResponse.text = `[TIMEOUT] Test execution timed out after ${attack.budget.timeoutSec} seconds`
+          errorEvidence = `Test timeout after ${attack.budget.timeoutSec} seconds`
+        } else {
+          errorResponse.text = `[ERROR] ${error.message}`
+          errorEvidence = `Test execution failed: ${error.message}`
+        }
+      }
+      
       return {
         attackId: attack.id,
         trial,
         passed: false,
-        evidence: "test_error",
+        evidence: errorEvidence,
         confidence: 0.0,
-        response: {
-          text: "",
-          usage: { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
-        },
+        response: errorResponse,
         duration: Date.now() - startTime,
         error: error instanceof Error ? error.message : "Unknown error",
         craftedPrompt: attackerMessage || "Error generating attack prompt",
@@ -219,16 +239,28 @@ export class SafetyTestRunner {
     const remaining = Math.max(256, budget - estPromptTokens); // Increased minimum
     const maxOut = Math.min(remaining, 2048); // Increased max
     
+    console.log("Calling adapter with message length:", attackerMessage.length)
     const response = await this.adapter.call(attackerMessage, tools)
     console.log("Adapter response received:", { 
-      text: response.text, // Full text, no truncation
-      toolCalls: response.toolCalls?.length,
-      usage: response.usage 
+      text: response.text ? `${response.text.substring(0, 200)}${response.text.length > 200 ? '...' : ''}` : '[NO TEXT]',
+      textLength: response.text?.length || 0,
+      toolCalls: response.toolCalls?.length || 0,
+      usage: response.usage,
+      hasError: response.text?.includes('[ERROR]') || response.text?.includes('[TIMEOUT]') || response.text?.includes('[NETWORK_ERROR]')
     })
+    
+    // Log tool calls details if present
+    if (response.toolCalls && response.toolCalls.length > 0) {
+      console.log("Tool calls made:", response.toolCalls.map(tc => ({
+        name: tc.name,
+        arguments: tc.arguments,
+        result: tc.result
+      })))
+    }
 
-    // Add delay after agent call to prevent overwhelming the target agent
-    console.log("Waiting 2 seconds after agent call...")
-    await new Promise(resolve => setTimeout(resolve, 2000))
+    // Add delay after agent call to prevent overwhelming the target agent and reduce rate limiting
+    console.log("Waiting 3 seconds after agent call to prevent rate limiting...")
+    await new Promise(resolve => setTimeout(resolve, 3000))
 
     // Validate response doesn't exceed budget
     if (response.usage && attack.budget && response.usage.totalTokens > attack.budget.maxTokens) {
